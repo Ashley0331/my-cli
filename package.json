@@ -18,7 +18,9 @@
   "homepage": "https://github.com/Ashley0331/my-cli#readme",
   "dependencies": {
     "commander": "^9.4.1",
-    "download-git-repo": "^3.0.2"
+    "download-git-repo": "^3.0.2",
+    "inquirer": "^9.1.4",
+    "ora": "^6.1.2"
   },
   "devDependencies": {
     "@types/node": "^18.11.0"

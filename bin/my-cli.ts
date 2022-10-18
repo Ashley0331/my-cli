@@ -12,4 +12,4 @@ program
             console.log(err);
         });
     })
-program.parse(process.argv);
+program.parse();
