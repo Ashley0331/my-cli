@@ -4,8 +4,9 @@ const fs = require("fs");
 const chalk = require("chalk");
 const path = require("path");
 const ora = require("ora"); // 加载动画
-const handlebars = require('handlebars');
-
+const handlebars = require("handlebars");
+const metalsmith = require("metalsmith");
+const rimraf = require('rimraf').sync;
 
 const template = {
   react: {
@@ -30,17 +31,17 @@ const config = [
     default: "test-template",
   },
   {
-    type: 'input',
-    name: 'author',
-    message: 'author',
-    default: 'default value'
+    type: "input",
+    name: "author",
+    message: "author",
+    default: "default value",
   },
   {
-    type: 'input',
-    name: 'description',
-    message: 'description',
-    default: 'default value'
-  }
+    type: "input",
+    name: "description",
+    message: "description",
+    default: "default value",
+  },
 ];
 
 module.exports = () => {
@@ -53,6 +54,7 @@ module.exports = () => {
     spinner.start();
     const url = template[type].url;
     const fullName = process.cwd() + "/" + name;
+    const tempDir = process.cwd() + "/.template"; // 临时文件夹
     if (fs.existsSync(fullName)) {
       // 判断目录是否已经存在
       spinner.fail(chalk.red("目录已存在"));
@@ -62,21 +64,51 @@ module.exports = () => {
     const meta = {
       projectName: name,
       author,
-      description
-    }
-    download(url, fullName, { clone: true }, (err) => {
+      description,
+    };
+    // 下载到临时文件夹里，进行内容的替换
+    download(url, tempDir, { clone: true }, (err) => {
       if (err) {
         spinner.fail(chalk.red("模版创建失败"));
         console.log(err);
       } else {
-        // 获取package.json的内容，（模版内容已写入文件中）
-        // 使用handlebar进行模版内容替换
-        const fileUrl = `${fullName}/package.json`
-        const content = fs.readFileSync(fileUrl).toString(); // 获取package.json的文件内容
-        const trueContent = handlebars.compile(content)(meta); // 模版内容替换
-        fs.writeFileSync(fileUrl, trueContent); // 将替换后的内容写入源文件
-        spinner.succeed(chalk.green("模版创建成功"));
+        const folder = metalsmith(tempDir);
+        folder.metadata(meta);
+        folder
+          .source(tempDir) // 遍历目录
+          .destination(fullName) // 目标目录
+          .use((files, meta, done) => {
+            // 替换内容
+            handleContent(files, meta);
+            done();
+          })
+          .build((err) => {
+            rimraf(tempDir); // 删除临时目录
+            if (err) {
+              spinner.fail(chalk.red("项目创建失败"));
+              console.log(err);
+              process.exit();
+            } else {
+              spinner.succeed(chalk.green("项目创建成功"));
+              process.exit();
+            }
+          });
       }
     });
+  });
+};
+
+const handleContent = (files, meta) => {
+  // files是对象，key方法获取他的key值数组，遍历文件
+  const list = Object.keys(files);
+  list.forEach((file) => {
+    const content = files[file].contents.toString();
+    // 检查文件内容是否含有模版内容
+    if (/{{([^{}]+)}}/g.test(content)) {
+      // 替换模版内容
+      const trueContent = handlebars.compile(content)(meta.metadata());
+      // 将新的内容覆盖
+      files[file].contents = Buffer.from(trueContent);
+    }
   });
 };
